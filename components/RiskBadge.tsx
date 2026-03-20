@@ -33,7 +33,7 @@ export default function RiskBadge({ riskLevel }: { riskLevel: RiskLevel }) {
     <div
       className={`inline-flex items-center gap-3 px-5 py-3 rounded-xl border ${c.bg} ${c.border}`}
     >
-      <span className={`h-3 w-3 rounded-full ${c.dot} shadow-lg`} />
+      <span aria-hidden="true" className={`h-3 w-3 rounded-full ${c.dot} shadow-lg`} />
       <span className={`text-xl font-bold tracking-wide ${c.text}`}>
         {c.label}
       </span>

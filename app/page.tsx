@@ -22,14 +22,25 @@ interface AnalyzeResult {
 
 function SkeletonBlock({ className = "" }: { className?: string }) {
   return (
+    <div className={`animate-pulse rounded-lg bg-slate-700/60 ${className}`} />
+  );
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
     <div
-      className={`animate-pulse rounded-lg bg-slate-700/60 ${className}`}
-    />
+      role="alert"
+      className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400"
+    >
+      <span aria-hidden="true">⚠️</span>
+      <span>{message}</span>
+    </div>
   );
 }
 
 export default function Home() {
   const [prompt, setPrompt] = useState(SAMPLE_PROMPT);
+  const [promptError, setPromptError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -38,7 +49,18 @@ export default function Home() {
   const [llmResponse, setLlmResponse] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  function handlePromptChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setPrompt(e.target.value);
+    if (e.target.value.trim() !== "") setPromptError(null);
+  }
+
   async function handleAnalyze() {
+    if (prompt.trim() === "") {
+      setPromptError("Please enter a prompt before analyzing.");
+      return;
+    }
+
+    setPromptError(null);
     setIsAnalyzing(true);
     setAnalyzeError(null);
     setResult(null);
@@ -59,7 +81,7 @@ export default function Home() {
           "error" in data &&
           typeof (data as Record<string, unknown>).error === "string"
             ? (data as Record<string, string>).error
-            : "Analysis failed.";
+            : "Analysis failed. Please try again.";
         setAnalyzeError(msg);
         return;
       }
@@ -92,7 +114,7 @@ export default function Home() {
           "error" in data &&
           typeof (data as Record<string, unknown>).error === "string"
             ? (data as Record<string, string>).error
-            : "Send failed.";
+            : "Failed to send prompt. Please try again.";
         setSendError(msg);
         return;
       }
@@ -102,7 +124,7 @@ export default function Home() {
         "response" in data &&
         typeof (data as Record<string, unknown>).response === "string"
           ? (data as Record<string, string>).response
-          : "No response.";
+          : "No response received.";
       setLlmResponse(resp);
     } catch {
       setSendError("Network error — could not reach the server.");
@@ -111,8 +133,7 @@ export default function Home() {
     }
   }
 
-  const displayText =
-    result && showMasked ? result.maskedText : prompt;
+  const displayText = result && showMasked ? result.maskedText : prompt;
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
@@ -120,7 +141,7 @@ export default function Home() {
       <header className="border-b border-slate-700/60 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-1">
           <div className="flex items-center gap-3">
-            <span className="text-3xl">🛡️</span>
+            <span aria-hidden="true" className="text-3xl">🛡️</span>
             <h1 className="text-xl font-bold tracking-tight text-slate-100">
               AI Security Gateway
             </h1>
@@ -137,14 +158,20 @@ export default function Home() {
         {/* ── LEFT: Input ── */}
         <div className="flex flex-col gap-4">
           <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col gap-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+            <label
+              htmlFor="prompt-textarea"
+              className="text-sm font-semibold uppercase tracking-wider text-slate-400"
+            >
               Your Prompt
-            </h2>
+            </label>
 
             <textarea
+              id="prompt-textarea"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={handlePromptChange}
               rows={12}
+              aria-describedby={promptError ? "prompt-error" : undefined}
+              aria-invalid={promptError ? true : undefined}
               className="w-full resize-y rounded-lg bg-slate-900 border border-slate-700 px-4 py-3 text-sm text-slate-100 placeholder-slate-500 font-mono leading-relaxed
                          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
                          transition-all duration-200 disabled:opacity-50"
@@ -152,16 +179,17 @@ export default function Home() {
               disabled={isAnalyzing}
             />
 
-            {analyzeError && (
-              <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
-                <span>⚠️</span>
-                <span>{analyzeError}</span>
-              </div>
+            {promptError && (
+              <p id="prompt-error" role="alert" className="text-sm text-red-400 flex items-center gap-1.5">
+                <span aria-hidden="true">⚠️</span>
+                {promptError}
+              </p>
             )}
 
             <button
               onClick={handleAnalyze}
-              disabled={isAnalyzing || prompt.trim() === ""}
+              disabled={isAnalyzing}
+              aria-label="Analyze prompt for sensitive data"
               className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700
                          px-6 py-3 text-sm font-semibold text-white
                          transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
@@ -170,11 +198,17 @@ export default function Home() {
             >
               {isAnalyzing ? (
                 <>
-                  <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  <span
+                    aria-hidden="true"
+                    className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin"
+                  />
                   Scanning…
                 </>
               ) : (
-                <>🔍 Analyze Prompt</>
+                <>
+                  <span aria-hidden="true">🔍</span>
+                  Analyze Prompt
+                </>
               )}
             </button>
           </div>
@@ -185,7 +219,11 @@ export default function Home() {
 
           {/* Loading skeleton */}
           {isAnalyzing && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col gap-4">
+            <div
+              aria-busy="true"
+              aria-label="Analyzing prompt…"
+              className="bg-slate-800 border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col gap-4"
+            >
               <SkeletonBlock className="h-4 w-24" />
               <SkeletonBlock className="h-10 w-48" />
               <div className="flex gap-2">
@@ -198,14 +236,24 @@ export default function Home() {
           )}
 
           {/* Empty state */}
-          {!isAnalyzing && !result && (
+          {!isAnalyzing && !result && !analyzeError && (
             <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-lg p-10 flex flex-col items-center justify-center gap-4 text-center min-h-[240px]">
-              <span className="text-5xl opacity-40">🔎</span>
+              <span aria-hidden="true" className="text-5xl opacity-40">🔎</span>
               <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
                 Paste a prompt and click{" "}
                 <span className="text-slate-300 font-medium">Analyze</span> to
                 scan for sensitive data
               </p>
+            </div>
+          )}
+
+          {/* API-level error (right panel) */}
+          {!isAnalyzing && analyzeError && (
+            <div className="animate-fade-in bg-slate-800 border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col gap-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Analysis Result
+              </h2>
+              <ErrorBanner message={analyzeError} />
             </div>
           )}
 
@@ -239,7 +287,10 @@ export default function Home() {
               {/* Toggle + text display */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <h2
+                    id="preview-label"
+                    className="text-xs font-semibold uppercase tracking-wider text-slate-400"
+                  >
                     Prompt Preview
                   </h2>
                   <ToggleSwitch
@@ -250,22 +301,21 @@ export default function Home() {
                   />
                 </div>
 
-                <pre className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-3 text-xs font-mono text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-52 overflow-y-auto">
+                <pre
+                  aria-labelledby="preview-label"
+                  className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-3 text-xs font-mono text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-52 overflow-y-auto"
+                >
                   {displayText}
                 </pre>
               </div>
 
-              {/* Send button */}
-              {sendError && (
-                <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
-                  <span>⚠️</span>
-                  <span>{sendError}</span>
-                </div>
-              )}
+              {/* Send error */}
+              {sendError && <ErrorBanner message={sendError} />}
 
               <button
                 onClick={handleSend}
                 disabled={isSending}
+                aria-label="Send masked prompt to the LLM"
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700
                            px-6 py-3 text-sm font-semibold text-white
                            transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
@@ -274,11 +324,17 @@ export default function Home() {
               >
                 {isSending ? (
                   <>
-                    <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin"
+                    />
                     Sending…
                   </>
                 ) : (
-                  <>🚀 Send Safe Prompt</>
+                  <>
+                    <span aria-hidden="true">🚀</span>
+                    Send Safe Prompt
+                  </>
                 )}
               </button>
             </div>

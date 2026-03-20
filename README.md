@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🛡️ AI Security Gateway
+
+A Next.js middleware UI that detects, masks, and risk-scores Personally Identifiable Information (PII) in user prompts before forwarding them to an LLM.
+
+---
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+git clone <your-repo-url>
+cd ai_security_gateway
+npm install
+cp .env.local.example .env.local   # add your OpenAI key when ready
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How It Works
 
-## Learn More
+1. **Paste** a prompt into the textarea (sample PII is pre-filled for demo)
+2. **Analyze** — the app scans for emails, phone numbers, and credit card numbers and returns a risk score
+3. **Review** — toggle between the original and masked text; findings are listed as labelled chips
+4. **Send** — the masked (safe) prompt is forwarded to the LLM and the response is displayed
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment (Vercel)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push this repo to GitHub
+2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import the repo
+3. Vercel auto-detects Next.js — no build config needed
+4. Add environment variable in the Vercel dashboard:
 
-## Deploy on Vercel
+   | Key | Value |
+   |---|---|
+   | `OPENAI_API_KEY` | `sk-...` |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+5. Click **Deploy**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> The mock LLM in `app/api/send/route.ts` is ready to be replaced with a real OpenAI call once `OPENAI_API_KEY` is set.
+
+---
+
+## API Reference
+
+### `POST /api/analyze`
+
+Scans text for PII and returns findings with a risk score.
+
+**Request**
+```json
+{ "text": "string" }
+```
+
+**Response**
+```json
+{
+  "riskLevel": "LOW" | "MEDIUM" | "HIGH",
+  "findings": [
+    { "type": "EMAIL" | "PHONE" | "CREDIT_CARD", "value": "string", "start": 0, "end": 17 }
+  ],
+  "maskedText": "string"
+}
+```
+
+**Risk thresholds:** 0 findings → `LOW` · 1–2 → `MEDIUM` · 3+ → `HIGH`
+
+**Errors:** `400` for missing/empty text · `500` for unexpected errors
+
+---
+
+### `POST /api/send`
+
+Forwards a (masked) prompt to the LLM and returns the response.
+
+**Request**
+```json
+{ "text": "string" }
+```
+
+**Response**
+```json
+{ "response": "string" }
+```
+
+**Errors:** `400` for missing/empty text · `500` for unexpected errors
+
+---
+
+## Tech Stack
+
+- [Next.js 16](https://nextjs.org) (App Router)
+- [TypeScript](https://www.typescriptlang.org) (strict mode)
+- [Tailwind CSS v4](https://tailwindcss.com)
+- [Vercel](https://vercel.com) for deployment
+
+## Scripts
+
+```bash
+npm run dev    # start dev server
+npm run build  # production build
+npm run lint   # ESLint
+npm test       # Jest unit tests
+```

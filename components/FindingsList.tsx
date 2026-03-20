@@ -45,7 +45,7 @@ export default function FindingsList({ findings }: { findings: Finding[] }) {
             key={i}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium ${c.bg} ${c.text} ${c.border}`}
           >
-            <span>{c.icon}</span>
+            <span aria-hidden="true">{c.icon}</span>
             <span className="font-semibold">{c.label}</span>
             <span className="opacity-60">·</span>
             <code className="font-mono text-xs opacity-80 max-w-[160px] truncate">
