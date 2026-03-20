@@ -1,5 +1,66 @@
 # AI Security Gateway — CLAUDE.md
 
+## Product Vision & Roadmap
+
+### What this product is
+AI Security Gateway is a privacy-first middleware tool that detects, flags, and masks PII in prompts before they reach any LLM. Unlike enterprise tools (Microsoft Presidio, SS&C AI Gateway) which are invisible developer SDKs, this product has a user-facing interface that makes the masking process transparent and interactive.
+
+### Target users
+- Developers using Claude Desktop, Cursor, Windsurf, VS Code
+- Individuals using cloud LLMs (ChatGPT, Gemini, Claude) via browser
+- Teams that handle sensitive data and need a lightweight audit layer
+
+### Product differentiator
+- Visual, interactive masking — user sees and controls what gets masked
+- v0 web app serves as a live demo and visual explainer of the system
+- Future MCP server version works natively inside Claude Desktop and IDEs
+- Detection is fully local — raw data never sent to a third party for analysis
+
+### Roadmap
+
+**v0 — Complete ✅**
+- Next.js web app deployed on Vercel
+- Regex-based PII detection (email, phone, credit card)
+- Risk scoring (LOW / MEDIUM / HIGH)
+- Masking engine with original/masked toggle
+- Mock LLM response (no API key required)
+- Demo-ready UI, dark theme
+
+**v1 — Web app matured (Next)**
+- Expanded regex detection:
+  - Aadhaar number (12-digit Indian national ID)
+  - PAN card (Indian tax ID)
+  - IP address
+  - Passport number
+  - Indian bank account number
+- Confidence scores per finding (0.0 – 1.0)
+- Anonymization modes: Mask / Redact / Replace with placeholder
+- Real OpenAI LLM integration (swap mock for live API)
+- Prompt history / audit log
+
+**v2 — MCP server**
+- Package detection engine as a local MCP server
+- Works natively in Claude Desktop, Cursor, Windsurf
+- Fully local — no cloud, no Vercel, no data leaves the device
+- Local dashboard showing live prompt scan feed and audit log
+- Install via: npm install -g ai-security-gateway-mcp
+- Intercepts prompts before they reach any LLM regardless of provider
+
+**v3 — Smarter detection + browser extension**
+- Add spaCy NER model to MCP server for unstructured PII
+  (names, addresses, organisations) — runs locally
+- Browser extension for ChatGPT.com and Gemini.google.com
+- Custom rules — users define their own PII patterns
+- Multi-language support
+
+### Architecture decision log
+- Detection must always run locally — sending raw text to an LLM for detection defeats the purpose of the tool
+- Regex chosen for v0/v1: fast, free, no external dependencies, appropriate for structured PII (email, phone, card numbers, IDs)
+- NER/ML models deferred to v3: require Python runtime or browser WASM, adds complexity not justified for MVP
+- MCP chosen over browser extension for v2: serves developer audience first, works across all LLM providers via IDE/Desktop, browser extension added in v3 for consumer LLM web apps
+
+---
+
 ## Project Overview
 
 AI Security Gateway is a Next.js 14 middleware UI that detects, flags, and masks Personally Identifiable Information (PII) in user prompts before they are forwarded to an LLM (OpenAI). Users paste a prompt, click "Analyze" to receive a risk assessment and masked version of their text, review/toggle between original and masked views, then optionally send the sanitized prompt to OpenAI and receive a response — all without exposing sensitive data to the model.

@@ -105,3 +105,19 @@ npm run build  # production build
 npm run lint   # ESLint
 npm test       # Jest unit tests
 ```
+
+---
+
+## Roadmap
+
+**v0 — Complete ✅**
+Web app on Vercel with regex-based PII detection (email, phone, credit card), risk scoring, masked/original toggle, and a demo-ready dark UI. No API key required.
+
+**v1 — Web app matured**
+Expanded detection: Aadhaar, PAN card, IP address, passport, Indian bank account numbers. Confidence scores per finding. Anonymization modes (mask / redact / replace). Real OpenAI integration. Prompt history and audit log.
+
+**v2 — MCP server**
+Detection engine packaged as a local MCP server — works natively inside Claude Desktop, Cursor, and Windsurf. Fully local, no cloud, no data leaves the device. Installable via `npm install -g ai-security-gateway-mcp`.
+
+**v3 — Smarter detection + browser extension**
+NER model (spaCy) for unstructured PII like names and addresses — runs locally. Browser extension for ChatGPT.com and Gemini.google.com. Custom user-defined detection rules. Multi-language support.
