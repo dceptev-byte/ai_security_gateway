@@ -26,19 +26,14 @@ AI Security Gateway is a privacy-first middleware tool that detects, flags, and 
 - Mock LLM response (no API key required)
 - Demo-ready UI, dark theme
 
-**v1 — Web app matured (Next)**
-- Expanded regex detection:
-  - Aadhaar number (12-digit Indian national ID)
-  - PAN card (Indian tax ID)
-  - IP address
-  - Passport number
-  - Indian bank account number
+**v1 — Complete ✅**
+- Expanded regex detection: Aadhaar, PAN, IP address, passport, Indian bank account
 - Confidence scores per finding (0.0 – 1.0)
 - Anonymization modes: Mask / Redact / Replace with placeholder
-- Real OpenAI LLM integration (swap mock for live API)
-- Prompt history / audit log
+- Real OpenAI LLM integration (mock by default; swap with live key via OPENAI_API_KEY)
+- Session audit log (in-memory, resets on page refresh)
 
-**v2 — MCP server**
+**v2 — MCP server** *(planned)*
 - Package detection engine as a local MCP server
 - Works natively in Claude Desktop, Cursor, Windsurf
 - Fully local — no cloud, no Vercel, no data leaves the device
@@ -46,7 +41,7 @@ AI Security Gateway is a privacy-first middleware tool that detects, flags, and 
 - Install via: npm install -g ai-security-gateway-mcp
 - Intercepts prompts before they reach any LLM regardless of provider
 
-**v3 — Smarter detection + browser extension**
+**v3 — Smarter detection + browser extension** *(planned)*
 - Add spaCy NER model to MCP server for unstructured PII
   (names, addresses, organisations) — runs locally
 - Browser extension for ChatGPT.com and Gemini.google.com
@@ -63,15 +58,15 @@ AI Security Gateway is a privacy-first middleware tool that detects, flags, and 
 
 ## Project Overview
 
-AI Security Gateway is a Next.js 14 middleware UI that detects, flags, and masks Personally Identifiable Information (PII) in user prompts before they are forwarded to an LLM (OpenAI). Users paste a prompt, click "Analyze" to receive a risk assessment and masked version of their text, review/toggle between original and masked views, then optionally send the sanitized prompt to OpenAI and receive a response — all without exposing sensitive data to the model.
+AI Security Gateway is a Next.js 16 middleware UI that detects, flags, and masks Personally Identifiable Information (PII) in user prompts before they are forwarded to an LLM. Users paste a prompt, choose an anonymization mode, click "Analyze" to receive a risk assessment and anonymized version of their text, review/toggle between original and anonymized views, then optionally send the sanitized prompt to the LLM and receive a response — all without exposing sensitive data to the model. Every analysis is recorded in a session audit log.
 
 ## Tech Stack
 
-- **Framework:** Next.js 14 (App Router)
+- **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript (strict mode)
-- **Styling:** Tailwind CSS
+- **Styling:** Tailwind CSS v4
 - **Backend:** Vercel API Routes (Next.js Route Handlers)
-- **LLM:** OpenAI API (`openai` npm package)
+- **LLM:** Mock by default; real OpenAI API ready via `OPENAI_API_KEY`
 - **Deployment:** Vercel
 
 ## Folder Structure Conventions
@@ -87,15 +82,18 @@ ai_security_gateway/
 │       └── send/
 │           └── route.ts    # POST /api/send
 ├── lib/
-│   ├── detect.ts           # PII detection logic (regex rules)
-│   └── mask.ts             # PII masking logic
+│   └── pii-detector.ts     # detectPII, maskPII, scoreRisk
+├── hooks/
+│   └── useAuditLog.ts      # Session audit log hook
 ├── components/
-│   ├── InputPanel.tsx
-│   ├── RiskPanel.tsx
-│   ├── MaskedToggle.tsx
-│   └── ResponsePanel.tsx
+│   ├── RiskBadge.tsx
+│   ├── FindingsList.tsx
+│   ├── ToggleSwitch.tsx
+│   └── AuditLog.tsx
 ├── types/
 │   └── index.ts            # Shared TypeScript types
+├── __tests__/
+│   └── pii-detector.test.ts
 ├── CLAUDE.md
 ├── .env.local.example
 └── .env.local              # gitignored
@@ -107,21 +105,28 @@ ai_security_gateway/
 
 **Input:**
 ```json
-{ "text": "string" }
+{ "text": "string", "mode": "MASK" | "REDACT" | "REPLACE" }
 ```
+`mode` is optional — defaults to `"MASK"`.
 
 **Output:**
 ```json
 {
-  "riskLevel": "Low" | "Medium" | "High",
+  "riskLevel": "LOW" | "MEDIUM" | "HIGH",
   "findings": [
-    { "type": "Email" | "Phone" | "CreditCard", "value": "string", "masked": "string" }
+    {
+      "type": "EMAIL" | "PHONE" | "CREDIT_CARD" | "AADHAAR" | "PAN" | "IP_ADDRESS" | "PASSPORT" | "BANK_ACCOUNT",
+      "value": "string",
+      "start": 0,
+      "end": 17,
+      "confidence": 0.95
+    }
   ],
   "maskedText": "string"
 }
 ```
 
-**Logic:** Run detection rules against `text`, collect findings, apply masking, compute risk level.
+**Logic:** Run detection rules against `text`, collect findings with confidence scores, apply the chosen anonymization mode, compute risk level.
 
 ---
 
@@ -137,31 +142,98 @@ ai_security_gateway/
 { "response": "string" }
 ```
 
-**Logic:** Forward `text` to OpenAI Chat Completions and return the model's reply.
+**Logic:** Forward `text` to LLM (mock by default; real OpenAI when `OPENAI_API_KEY` is set) and return the model's reply.
+
+## Shared TypeScript Types
+
+```typescript
+// types/index.ts
+
+type AnonymizationMode = "MASK" | "REDACT" | "REPLACE";
+
+type PIIType =
+  | "EMAIL" | "PHONE" | "CREDIT_CARD"
+  | "AADHAAR" | "PAN" | "IP_ADDRESS" | "PASSPORT" | "BANK_ACCOUNT";
+
+type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
+
+interface Finding {
+  type: PIIType;
+  value: string;
+  start: number;
+  end: number;
+  confidence: number;  // 0.0 – 1.0
+}
+
+interface AnalyzeResult {
+  riskLevel: RiskLevel;
+  findings: Finding[];
+  maskedText: string;
+}
+
+interface AuditLogEntry {
+  id: string;
+  timestamp: Date;
+  originalLength: number;
+  findings: Finding[];
+  riskLevel: RiskLevel;
+  mode: AnonymizationMode;
+  wasSent: boolean;
+}
+```
 
 ## Detection Rules (Regex-Based)
 
-| Type        | Pattern Description                        |
-|-------------|---------------------------------------------|
-| Email       | Standard email regex                        |
-| Phone       | India-friendly phone (10-digit, +91 prefix) |
-| Credit Card | Major card patterns (Visa, MC, Amex, etc.)  |
+All detection runs server-side in `lib/pii-detector.ts`. Raw text is never sent to an external service for analysis.
 
-## Masking Format
+| Type           | Regex Pattern                                                                 | Confidence | Notes                                      |
+|----------------|-------------------------------------------------------------------------------|------------|--------------------------------------------|
+| `EMAIL`        | `/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g`                         | 0.95       |                                            |
+| `PHONE`        | `/((\+91\|0)?[\s-]?)?[6-9]\d{9}/g`                                           | 0.90       | India-friendly; matches +91, spaces, dashes|
+| `CREDIT_CARD`  | `/\b(?:\d[ -]?){13,16}\b/g`                                                   | 0.98       | Luhn check applied to reduce false positives|
+| `AADHAAR`      | `/\b[2-9]{1}[0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b/g`                             | 0.92       | Starts with 2–9; groups of 4 with optional spaces|
+| `PAN`          | `/\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/g`                                            | 0.97       | 5 uppercase + 4 digits + 1 uppercase       |
+| `IP_ADDRESS`   | `/\b(?:(?:25[0-5]\|2[0-4][0-9]\|[01]?[0-9][0-9]?)\.){3}(...)\b/g`           | 0.85       | Each octet validated 0–255                 |
+| `PASSPORT`     | `/\b[A-PR-WYa-pr-wy][1-9]\d\s?\d{4}[1-9]\b/g`                               | 0.88       | Indian passport format                     |
+| `BANK_ACCOUNT` | `/\b[0-9]{9,18}\b/g` (context-gated)                                          | 0.75       | Only flagged near banking context words    |
 
-| Type        | Format Example            |
-|-------------|---------------------------|
-| Email       | `j***@g***.com`           |
-| Phone       | `******1234`              |
-| Credit Card | `**** **** **** 1111`     |
+## Masking Format (MASK mode)
+
+| Type           | Format Example              |
+|----------------|-----------------------------|
+| `EMAIL`        | `r***@g***.com`             |
+| `PHONE`        | `******3210`                |
+| `CREDIT_CARD`  | `**** **** **** 9012`       |
+| `AADHAAR`      | `**** **** 0123`            |
+| `PAN`          | `***** 1234 F`              |
+| `IP_ADDRESS`   | `***.***.***.***`            |
+| `PASSPORT`     | `*******`                   |
+| `BANK_ACCOUNT` | `**********9012`            |
+
+## Anonymization Modes
+
+| Mode      | Behaviour                                              | Example output      |
+|-----------|--------------------------------------------------------|---------------------|
+| `MASK`    | Partially obscure — keep only identifying suffix/chars | `r***@g***.com`     |
+| `REDACT`  | Remove value entirely                                  | *(empty string)*    |
+| `REPLACE` | Substitute with typed placeholder token                | `[EMAIL]`           |
 
 ## Risk Scoring
 
 | Findings Count | Risk Level |
 |----------------|------------|
-| 0              | Low        |
-| 1–2            | Medium     |
-| 3+             | High       |
+| 0              | `LOW`      |
+| 1–2            | `MEDIUM`   |
+| 3+             | `HIGH`     |
+
+## Session Audit Log
+
+Implemented in `hooks/useAuditLog.ts` + `components/AuditLog.tsx`.
+
+- In-memory only — no database, resets on page refresh
+- `useAuditLog` hook exposes: `addEntry`, `markSent`, `clearLog`, `entries`, `stats`
+- `stats` derives `totalScanned`, `totalPIIFound`, `totalSent` on every render
+- `AuditLog` component: collapsible table, expandable rows, slide-in animation on new entries
 
 ## Code Style Rules
 
@@ -179,6 +251,7 @@ Before every commit, run:
 ```bash
 npm run lint    # Fix all ESLint errors
 npm run build   # Ensure the build passes with zero errors
+npm test        # All unit tests must pass
 ```
 
-Do **not** commit if either command reports errors.
+Do **not** commit if any command reports errors.

@@ -20,10 +20,48 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## How It Works
 
-1. **Paste** a prompt into the textarea (sample PII is pre-filled for demo)
-2. **Analyze** — the app scans for emails, phone numbers, and credit card numbers and returns a risk score
-3. **Review** — toggle between the original and masked text; findings are listed as labelled chips
-4. **Send** — the masked (safe) prompt is forwarded to the LLM and the response is displayed
+1. **Paste** a prompt into the textarea (sample PII is pre-filled for demo — covers all 8 detection types)
+2. **Choose mode** — Mask, Redact, or Replace (see below)
+3. **Analyze** — the app scans locally for PII and returns a risk score with confidence values per finding
+4. **Review** — toggle between the original and anonymized text; findings are listed as labelled chips
+5. **Send** — the safe prompt is forwarded to the LLM and the response is displayed
+6. **Audit** — the session audit log below the main UI records every analysis
+
+---
+
+## Detection Types
+
+All detection runs **locally** in the API route — raw text is never sent to a third party for analysis.
+
+| Type           | Description                                    | Confidence |
+|----------------|------------------------------------------------|------------|
+| `EMAIL`        | Standard email addresses                       | 0.95       |
+| `PHONE`        | India-friendly phone numbers (+91, 10-digit)   | 0.90       |
+| `CREDIT_CARD`  | Major card formats; Luhn-validated             | 0.98       |
+| `AADHAAR`      | 12-digit Indian national ID                    | 0.92       |
+| `PAN`          | Indian tax ID (5 letters + 4 digits + 1 letter)| 0.97       |
+| `IP_ADDRESS`   | IPv4 addresses (octet-validated)               | 0.85       |
+| `PASSPORT`     | Indian passport format                         | 0.88       |
+| `BANK_ACCOUNT` | Indian bank account numbers (9–18 digits)      | 0.75       |
+
+---
+
+## Anonymization Modes
+
+| Mode        | Behaviour                                          | Example                   |
+|-------------|----------------------------------------------------|---------------------------|
+| **Mask**    | Partially obscure the value                        | `r***@g***.com`           |
+| **Redact**  | Remove the value entirely                          | *(empty)*                 |
+| **Replace** | Substitute with a typed token (best for LLMs)      | `[EMAIL]`                 |
+
+---
+
+## Session Audit Log
+
+Every analysis is recorded in an in-memory session log (resets on page refresh). The log shows:
+- Timestamp, risk level, number of PII items found, anonymization mode used, and whether the prompt was sent
+- Expandable rows showing the full findings list for each entry
+- A "Clear log" button to reset the session
 
 ---
 
@@ -52,15 +90,22 @@ Scans text for PII and returns findings with a risk score.
 
 **Request**
 ```json
-{ "text": "string" }
+{ "text": "string", "mode": "MASK" | "REDACT" | "REPLACE" }
 ```
+`mode` is optional — defaults to `"MASK"`.
 
 **Response**
 ```json
 {
   "riskLevel": "LOW" | "MEDIUM" | "HIGH",
   "findings": [
-    { "type": "EMAIL" | "PHONE" | "CREDIT_CARD", "value": "string", "start": 0, "end": 17 }
+    {
+      "type": "EMAIL" | "PHONE" | "CREDIT_CARD" | "AADHAAR" | "PAN" | "IP_ADDRESS" | "PASSPORT" | "BANK_ACCOUNT",
+      "value": "string",
+      "start": 0,
+      "end": 17,
+      "confidence": 0.95
+    }
   ],
   "maskedText": "string"
 }
@@ -113,11 +158,11 @@ npm test       # Jest unit tests
 **v0 — Complete ✅**
 Web app on Vercel with regex-based PII detection (email, phone, credit card), risk scoring, masked/original toggle, and a demo-ready dark UI. No API key required.
 
-**v1 — Web app matured**
-Expanded detection: Aadhaar, PAN card, IP address, passport, Indian bank account numbers. Confidence scores per finding. Anonymization modes (mask / redact / replace). Real OpenAI integration. Prompt history and audit log.
+**v1 — Complete ✅**
+Expanded detection to 8 PII types: adds Aadhaar, PAN, IP address, passport, and Indian bank account numbers. Confidence scores per finding. Three anonymization modes (Mask / Redact / Replace). Real OpenAI integration ready (mock by default). Session audit log.
 
-**v2 — MCP server**
+**v2 — MCP server** *(planned)*
 Detection engine packaged as a local MCP server — works natively inside Claude Desktop, Cursor, and Windsurf. Fully local, no cloud, no data leaves the device. Installable via `npm install -g ai-security-gateway-mcp`.
 
-**v3 — Smarter detection + browser extension**
+**v3 — Smarter detection + browser extension** *(planned)*
 NER model (spaCy) for unstructured PII like names and addresses — runs locally. Browser extension for ChatGPT.com and Gemini.google.com. Custom user-defined detection rules. Multi-language support.

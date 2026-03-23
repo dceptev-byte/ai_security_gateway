@@ -8,13 +8,15 @@ import ToggleSwitch from "@/components/ToggleSwitch";
 import AuditLog from "@/components/AuditLog";
 import { useAuditLog } from "@/hooks/useAuditLog";
 
-const SAMPLE_PROMPT = `Hi, I need help reviewing my account details.
-
-My name is John Smith and my email is john.smith@acmecorp.com.
-You can also reach me at +91 9876543210.
-
-I noticed an unexpected charge on my Visa card 4111 1111 1111 1111.
-Could you help me understand this transaction and dispute it if necessary?`;
+const SAMPLE_PROMPT = `Hi, my name is Rahul Sharma. Please process my insurance claim.
+Email: rahul.sharma@gmail.com
+Phone: +91 98765 43210
+Aadhaar: 2345 6789 0123
+PAN: ABCDE1234F
+Credit card: 4532 1234 5678 9012
+Bank account: 123456789012
+Passport: A1234567
+Server IP: 192.168.1.105`;
 
 interface AnalyzeResult {
   riskLevel: RiskLevel;
