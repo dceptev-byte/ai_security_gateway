@@ -1,4 +1,12 @@
-export type PIIType = "EMAIL" | "PHONE" | "CREDIT_CARD";
+export type PIIType =
+  | "EMAIL"
+  | "PHONE"
+  | "CREDIT_CARD"
+  | "AADHAAR"
+  | "PAN"
+  | "IP_ADDRESS"
+  | "PASSPORT"
+  | "BANK_ACCOUNT";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
@@ -7,6 +15,7 @@ export interface Finding {
   value: string;
   start: number;
   end: number;
+  confidence: number;
 }
 
 export interface AnalyzeResult {

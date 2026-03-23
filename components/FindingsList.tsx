@@ -25,6 +25,41 @@ const TYPE_CONFIG: Record<
     border: "border-orange-500/30",
     icon: "💳",
   },
+  AADHAAR: {
+    label: "Aadhaar",
+    bg: "bg-teal-500/10",
+    text: "text-teal-300",
+    border: "border-teal-500/30",
+    icon: "🪪",
+  },
+  PAN: {
+    label: "PAN Card",
+    bg: "bg-cyan-500/10",
+    text: "text-cyan-300",
+    border: "border-cyan-500/30",
+    icon: "📋",
+  },
+  IP_ADDRESS: {
+    label: "IP Address",
+    bg: "bg-slate-500/10",
+    text: "text-slate-300",
+    border: "border-slate-500/30",
+    icon: "🌐",
+  },
+  PASSPORT: {
+    label: "Passport",
+    bg: "bg-indigo-500/10",
+    text: "text-indigo-300",
+    border: "border-indigo-500/30",
+    icon: "🛂",
+  },
+  BANK_ACCOUNT: {
+    label: "Bank Account",
+    bg: "bg-yellow-500/10",
+    text: "text-yellow-300",
+    border: "border-yellow-500/30",
+    icon: "🏦",
+  },
 };
 
 export default function FindingsList({ findings }: { findings: Finding[] }) {
