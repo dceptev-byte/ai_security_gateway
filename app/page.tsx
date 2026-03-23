@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AnonymizationMode, Finding, RiskLevel } from "@/types";
 import RiskBadge from "@/components/RiskBadge";
 import FindingsList from "@/components/FindingsList";
 import ToggleSwitch from "@/components/ToggleSwitch";
+import AuditLog from "@/components/AuditLog";
+import { useAuditLog } from "@/hooks/useAuditLog";
 
 const SAMPLE_PROMPT = `Hi, I need help reviewing my account details.
 
@@ -115,6 +117,9 @@ function ErrorBanner({ message }: { message: string }) {
 // Page
 // ---------------------------------------------------------------------------
 export default function Home() {
+  const { entries, addEntry, markSent, clearLog, stats } = useAuditLog();
+  const currentEntryId = useRef<string | null>(null);
+
   const [prompt, setPrompt] = useState(SAMPLE_PROMPT);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [mode, setMode] = useState<AnonymizationMode>("MASK");
@@ -165,8 +170,21 @@ export default function Home() {
         setAnalyzeError(msg);
         return;
       }
-      setResult(data as AnalyzeResult);
+      const analysisResult = data as AnalyzeResult;
+      setResult(analysisResult);
       setShowMasked(true);
+
+      const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      currentEntryId.current = entryId;
+      addEntry({
+        id: entryId,
+        timestamp: new Date(),
+        originalLength: prompt.length,
+        findings: analysisResult.findings,
+        riskLevel: analysisResult.riskLevel,
+        mode: activeMode,
+        wasSent: false,
+      });
     } catch {
       setAnalyzeError("Network error — could not reach the server.");
     } finally {
@@ -214,6 +232,7 @@ export default function Home() {
           ? (data as Record<string, string>).response
           : "No response received.";
       setLlmResponse(resp);
+      if (currentEntryId.current) markSent(currentEntryId.current);
     } catch {
       setSendError("Network error — could not reach the server.");
     } finally {
@@ -443,6 +462,14 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* ── Audit Log ── */}
+      <section
+        aria-label="Session audit log"
+        className="max-w-7xl mx-auto w-full px-4 sm:px-6 pb-10"
+      >
+        <AuditLog entries={entries} stats={stats} onClear={clearLog} />
+      </section>
     </div>
   );
 }

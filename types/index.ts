@@ -25,3 +25,13 @@ export interface AnalyzeResult {
   findings: Finding[];
   maskedText: string;
 }
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: Date;
+  originalLength: number;
+  findings: Finding[];
+  riskLevel: RiskLevel;
+  mode: AnonymizationMode;
+  wasSent: boolean;
+}
