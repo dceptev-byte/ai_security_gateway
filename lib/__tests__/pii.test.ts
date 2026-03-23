@@ -430,3 +430,147 @@ describe("detectPII — mixed text", () => {
     expect(scoreRisk(findings)).toBe("LOW");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Anonymization modes — all three modes × all 8 PII types
+// ---------------------------------------------------------------------------
+describe("anonymization modes", () => {
+  // Helper: detect then apply a given mode
+  function apply(text: string, mode: "MASK" | "REDACT" | "REPLACE") {
+    return maskPII(text, detectPII(text), mode);
+  }
+
+  // ── EMAIL ──
+  describe("EMAIL", () => {
+    const text = "alice@example.com";
+    it("MASK  → j***@g***.com format", () => {
+      expect(apply(text, "MASK")).toBe("a***@e***.com");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("");
+    });
+    it("REPLACE → [EMAIL] token", () => {
+      expect(apply(text, "REPLACE")).toBe("[EMAIL]");
+    });
+  });
+
+  // ── PHONE ──
+  describe("PHONE", () => {
+    const text = "9876543210";
+    it("MASK  → ******last4", () => {
+      expect(apply(text, "MASK")).toBe("******3210");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("");
+    });
+    it("REPLACE → [PHONE] token", () => {
+      expect(apply(text, "REPLACE")).toBe("[PHONE]");
+    });
+  });
+
+  // ── CREDIT_CARD ──
+  describe("CREDIT_CARD", () => {
+    const text = "4111111111111111";
+    it("MASK  → **** **** **** last4", () => {
+      expect(apply(text, "MASK")).toBe("**** **** **** 1111");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("");
+    });
+    it("REPLACE → [CREDIT_CARD] token", () => {
+      expect(apply(text, "REPLACE")).toBe("[CREDIT_CARD]");
+    });
+  });
+
+  // ── AADHAAR ──
+  describe("AADHAAR", () => {
+    const text = "2345 6789 0123";
+    it("MASK  → **** **** last4", () => {
+      expect(apply(text, "MASK")).toBe("**** **** 0123");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("");
+    });
+    it("REPLACE → [AADHAAR] token", () => {
+      expect(apply(text, "REPLACE")).toBe("[AADHAAR]");
+    });
+  });
+
+  // ── PAN ──
+  describe("PAN", () => {
+    const text = "ABCDE1234F";
+    it("MASK  → ***** digits *", () => {
+      expect(apply(text, "MASK")).toBe("***** 1234 *");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("");
+    });
+    it("REPLACE → [PAN] token", () => {
+      expect(apply(text, "REPLACE")).toBe("[PAN]");
+    });
+  });
+
+  // ── IP_ADDRESS ──
+  describe("IP_ADDRESS", () => {
+    const text = "192.168.1.1";
+    it("MASK  → ***.***.***.***", () => {
+      expect(apply(text, "MASK")).toBe("***.***.***.***");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("");
+    });
+    it("REPLACE → [IP_ADDRESS] token", () => {
+      expect(apply(text, "REPLACE")).toBe("[IP_ADDRESS]");
+    });
+  });
+
+  // ── PASSPORT ──
+  describe("PASSPORT", () => {
+    const text = "A1234561";
+    it("MASK  → all stars", () => {
+      expect(apply(text, "MASK")).toBe("********");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("");
+    });
+    it("REPLACE → [PASSPORT] token", () => {
+      expect(apply(text, "REPLACE")).toBe("[PASSPORT]");
+    });
+  });
+
+  // ── BANK_ACCOUNT ──
+  describe("BANK_ACCOUNT", () => {
+    const text = "bank 123456789012";
+    it("MASK  → stars + last4", () => {
+      expect(apply(text, "MASK")).toBe("bank ********9012");
+    });
+    it("REDACT → value removed", () => {
+      expect(apply(text, "REDACT")).toBe("bank ");
+    });
+    it("REPLACE → [BANK_ACCOUNT] token", () => {
+      expect(apply(text, "REPLACE")).toBe("bank [BANK_ACCOUNT]");
+    });
+  });
+
+  // ── Mixed text — all three modes ──
+  describe("mixed text", () => {
+    const text = "Email bob@test.com, card 4111111111111111";
+    it("MASK  replaces all with partial obscuring", () => {
+      const result = apply(text, "MASK");
+      expect(result).toContain("b***@t***.com");
+      expect(result).toContain("**** **** **** 1111");
+    });
+    it("REDACT removes all PII", () => {
+      const result = apply(text, "REDACT");
+      expect(result).not.toContain("bob@test.com");
+      expect(result).not.toContain("4111111111111111");
+    });
+    it("REPLACE inserts typed tokens for all PII", () => {
+      const result = apply(text, "REPLACE");
+      expect(result).toContain("[EMAIL]");
+      expect(result).toContain("[CREDIT_CARD]");
+      expect(result).not.toContain("bob@test.com");
+      expect(result).not.toContain("4111111111111111");
+    });
+  });
+});

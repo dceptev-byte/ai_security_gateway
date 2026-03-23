@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Finding, RiskLevel } from "@/types";
+import type { AnonymizationMode, Finding, RiskLevel } from "@/types";
 import RiskBadge from "@/components/RiskBadge";
 import FindingsList from "@/components/FindingsList";
 import ToggleSwitch from "@/components/ToggleSwitch";
@@ -20,6 +20,79 @@ interface AnalyzeResult {
   maskedText: string;
 }
 
+// ---------------------------------------------------------------------------
+// Mode selector
+// ---------------------------------------------------------------------------
+const MODE_CONFIG: Record<
+  AnonymizationMode,
+  { label: string; tooltip: string; previewLabel: string }
+> = {
+  MASK: {
+    label: "Mask",
+    tooltip: "Partially obscure sensitive values — e.g. j***@g***.com",
+    previewLabel: "Masked",
+  },
+  REDACT: {
+    label: "Redact",
+    tooltip: "Remove sensitive values entirely from the text",
+    previewLabel: "Redacted",
+  },
+  REPLACE: {
+    label: "Replace",
+    tooltip: "Substitute with type tokens — e.g. [EMAIL]. Best for LLM prompts.",
+    previewLabel: "Replaced",
+  },
+};
+
+const MODES: AnonymizationMode[] = ["MASK", "REDACT", "REPLACE"];
+
+function ModeSelector({
+  mode,
+  onChange,
+}: {
+  mode: AnonymizationMode;
+  onChange: (m: AnonymizationMode) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+        Anonymization Mode
+      </span>
+      <div
+        role="group"
+        aria-label="Anonymization mode"
+        className="flex rounded-lg overflow-hidden border border-slate-700"
+      >
+        {MODES.map((m, i) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange(m)}
+            title={MODE_CONFIG[m].tooltip}
+            aria-pressed={mode === m}
+            aria-label={`${MODE_CONFIG[m].label}: ${MODE_CONFIG[m].tooltip}`}
+            className={[
+              "flex-1 py-2 px-3 text-sm font-medium transition-colors duration-200",
+              i > 0 ? "border-l border-slate-700" : "",
+              mode === m
+                ? "bg-blue-600 text-white"
+                : "bg-slate-900 text-slate-400 hover:bg-slate-700 hover:text-slate-200",
+            ].join(" ")}
+          >
+            {MODE_CONFIG[m].label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500 leading-relaxed">
+        {MODE_CONFIG[mode].tooltip}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared UI atoms
+// ---------------------------------------------------------------------------
 function SkeletonBlock({ className = "" }: { className?: string }) {
   return (
     <div className={`animate-pulse rounded-lg bg-slate-700/60 ${className}`} />
@@ -38,9 +111,13 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 export default function Home() {
   const [prompt, setPrompt] = useState(SAMPLE_PROMPT);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [mode, setMode] = useState<AnonymizationMode>("MASK");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -54,12 +131,15 @@ export default function Home() {
     if (e.target.value.trim() !== "") setPromptError(null);
   }
 
-  async function handleAnalyze() {
+  // overrideMode lets handleModeChange pass the new value before React
+  // has flushed the setMode call.
+  async function handleAnalyze(overrideMode?: AnonymizationMode) {
     if (prompt.trim() === "") {
       setPromptError("Please enter a prompt before analyzing.");
       return;
     }
 
+    const activeMode = overrideMode ?? mode;
     setPromptError(null);
     setIsAnalyzing(true);
     setAnalyzeError(null);
@@ -71,7 +151,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: prompt }),
+        body: JSON.stringify({ text: prompt, mode: activeMode }),
       });
       const data: unknown = await res.json();
       if (!res.ok) {
@@ -91,6 +171,14 @@ export default function Home() {
       setAnalyzeError("Network error — could not reach the server.");
     } finally {
       setIsAnalyzing(false);
+    }
+  }
+
+  function handleModeChange(newMode: AnonymizationMode) {
+    setMode(newMode);
+    // Re-analyze if we already have a result so the preview updates immediately.
+    if (result || analyzeError) {
+      handleAnalyze(newMode);
     }
   }
 
@@ -186,8 +274,10 @@ export default function Home() {
               </p>
             )}
 
+            <ModeSelector mode={mode} onChange={handleModeChange} />
+
             <button
-              onClick={handleAnalyze}
+              onClick={() => handleAnalyze()}
               disabled={isAnalyzing}
               aria-label="Analyze prompt for sensitive data"
               className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700
@@ -247,7 +337,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* API-level error (right panel) */}
+          {/* API-level error */}
           {!isAnalyzing && analyzeError && (
             <div className="animate-fade-in bg-slate-800 border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col gap-4">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -284,7 +374,7 @@ export default function Home() {
 
               <div className="border-t border-slate-700" />
 
-              {/* Toggle + text display */}
+              {/* Toggle + text preview */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h2
@@ -297,7 +387,7 @@ export default function Home() {
                     checked={showMasked}
                     onChange={setShowMasked}
                     labelLeft="Original"
-                    labelRight="Masked"
+                    labelRight={MODE_CONFIG[mode].previewLabel}
                   />
                 </div>
 
@@ -315,7 +405,7 @@ export default function Home() {
               <button
                 onClick={handleSend}
                 disabled={isSending}
-                aria-label="Send masked prompt to the LLM"
+                aria-label="Send anonymized prompt to the LLM"
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700
                            px-6 py-3 text-sm font-semibold text-white
                            transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed

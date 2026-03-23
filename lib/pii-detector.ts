@@ -1,4 +1,4 @@
-import type { Finding, PIIType, RiskLevel } from "@/types";
+import type { AnonymizationMode, Finding, PIIType, RiskLevel } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Regex patterns
@@ -175,12 +175,23 @@ export function detectPII(text: string): Finding[] {
 // ---------------------------------------------------------------------------
 // maskPII — right-to-left replacement to preserve indices
 // ---------------------------------------------------------------------------
-export function maskPII(text: string, findings: Finding[]): string {
+export function maskPII(
+  text: string,
+  findings: Finding[],
+  mode: AnonymizationMode = "MASK"
+): string {
   const sorted = [...findings].sort((a, b) => b.start - a.start);
   let result = text;
   for (const f of sorted) {
-    result =
-      result.slice(0, f.start) + MASK_FN[f.type](f.value) + result.slice(f.end);
+    let replacement: string;
+    if (mode === "REDACT") {
+      replacement = "";
+    } else if (mode === "REPLACE") {
+      replacement = `[${f.type}]`;
+    } else {
+      replacement = MASK_FN[f.type](f.value);
+    }
+    result = result.slice(0, f.start) + replacement + result.slice(f.end);
   }
   return result;
 }

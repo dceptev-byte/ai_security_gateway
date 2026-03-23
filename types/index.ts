@@ -1,3 +1,5 @@
+export type AnonymizationMode = "MASK" | "REDACT" | "REPLACE";
+
 export type PIIType =
   | "EMAIL"
   | "PHONE"
