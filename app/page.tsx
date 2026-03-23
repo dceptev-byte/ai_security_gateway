@@ -7,6 +7,7 @@ import FindingsList from "@/components/FindingsList";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import AuditLog from "@/components/AuditLog";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import PipelineDemoTab from "@/components/PipelineDemoTab";
 
 const SAMPLE_PROMPT = `Hi, my name is Rahul Sharma. Please process my insurance claim.
 Email: rahul.sharma@gmail.com
@@ -121,6 +122,7 @@ function ErrorBanner({ message }: { message: string }) {
 export default function Home() {
   const { entries, addEntry, markSent, clearLog, stats } = useAuditLog();
   const currentEntryId = useRef<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"scanner" | "pipeline">("scanner");
 
   const [prompt, setPrompt] = useState(SAMPLE_PROMPT);
   const [promptError, setPromptError] = useState<string | null>(null);
@@ -261,6 +263,32 @@ export default function Home() {
         </div>
       </header>
 
+      {/* ── Tab Bar ── */}
+      <div className="border-b border-slate-700 bg-slate-900">
+        <div role="tablist" aria-label="App sections" className="max-w-7xl mx-auto px-4 sm:px-6 flex">
+          {(["scanner", "pipeline"] as const).map((tab) => (
+            <button
+              key={tab}
+              role="tab"
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              aria-selected={activeTab === tab}
+              className={[
+                "px-5 py-3 text-sm font-medium border-b-2 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                activeTab === tab
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600",
+              ].join(" ")}
+            >
+              {tab === "scanner" ? "🔍 Prompt Scanner" : "🔗 Pipeline Demo"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Scanner Tab ── */}
+      {activeTab === "scanner" && (
+        <>
       {/* ── Main ── */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 grid lg:grid-cols-2 gap-6 items-start">
 
@@ -472,6 +500,15 @@ export default function Home() {
       >
         <AuditLog entries={entries} stats={stats} onClear={clearLog} />
       </section>
+        </>
+      )}
+
+      {/* ── Pipeline Demo Tab ── */}
+      {activeTab === "pipeline" && (
+        <main className="flex-1">
+          <PipelineDemoTab />
+        </main>
+      )}
     </div>
   );
 }
