@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { Finding, RiskLevel } from "@/types";
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -298,6 +299,20 @@ export default function PipelineDemoTab() {
 
   return (
     <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-0">
+      {/* Integration link */}
+      <div className="mb-6 flex items-center justify-between">
+        <p className="text-sm text-slate-500">
+          A step-by-step demo of the tokenisation pipeline.
+        </p>
+        <Link
+          href="/pipeline-demo/integration-example"
+          className="text-xs text-blue-400 hover:text-blue-300 transition-colors duration-200 flex items-center gap-1 border border-blue-500/30 rounded-lg px-3 py-1.5"
+        >
+          <span aria-hidden="true">📄</span>
+          Integration Examples →
+        </Link>
+      </div>
+
       {error && (
         <div
           role="alert"
