@@ -574,3 +574,102 @@ describe("anonymization modes", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tokenise pipeline (powers /api/tokenize + /api/detokenize)
+// ---------------------------------------------------------------------------
+describe("tokenise pipeline", () => {
+  // Shared helper: replicates the tokenization logic from /api/tokenize
+  function tokenize(text: string): {
+    tokenizedText: string;
+    tokenMap: Record<string, string>; // token → original value
+    valueToToken: Map<string, string>;
+  } {
+    const findings = detectPII(text);
+    const valueToToken = new Map<string, string>();
+    let idx = 0;
+    for (const f of findings) {
+      if (!valueToToken.has(f.value)) {
+        valueToToken.set(f.value, `[${f.type}_tk${String(idx++).padStart(4, "0")}]`);
+      }
+    }
+    const sorted = [...findings].sort((a, b) => b.start - a.start);
+    let tokenizedText = text;
+    for (const f of sorted) {
+      const token = valueToToken.get(f.value)!;
+      tokenizedText =
+        tokenizedText.slice(0, f.start) + token + tokenizedText.slice(f.end);
+    }
+    const tokenMap: Record<string, string> = {};
+    for (const [value, token] of valueToToken) tokenMap[token] = value;
+    return { tokenizedText, tokenMap, valueToToken };
+  }
+
+  it("tokenize: tokens appear in output; original PII values do not", () => {
+    const text = "Email: user@example.com, PAN: ABCDE1234F";
+    const { tokenizedText, valueToToken } = tokenize(text);
+
+    // Original PII must be absent
+    expect(tokenizedText).not.toContain("user@example.com");
+    expect(tokenizedText).not.toContain("ABCDE1234F");
+
+    // Typed tokens must be present
+    for (const [, token] of valueToToken) {
+      expect(tokenizedText).toContain(token);
+    }
+
+    // Token map is populated (equivalent to tokenMapId being returned)
+    expect(valueToToken.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it("tokenize: same value always maps to the same token", () => {
+    const text = "Contact a@b.com or a@b.com again";
+    const { tokenizedText, valueToToken } = tokenize(text);
+
+    expect(valueToToken.size).toBe(1); // one unique value
+    const token = [...valueToToken.values()][0];
+    // Both occurrences replaced with the same token
+    const occurrences = tokenizedText.split(token).length - 1;
+    expect(occurrences).toBe(2);
+  });
+
+  it("detokenize: restores all original values in LLM output", () => {
+    const original = "Contact user@example.com, PAN ABCDE1234F";
+    const { tokenMap, valueToToken } = tokenize(original);
+
+    // Simulate LLM response that references the tokens
+    const emailToken = valueToToken.get("user@example.com")!;
+    const panToken = valueToToken.get("ABCDE1234F")!;
+    const llmOutput = `Processed request for ${emailToken}. Identity verified via PAN ${panToken}.`;
+
+    // Detokenize (replicates /api/detokenize logic)
+    let restored = llmOutput;
+    for (const [token, originalValue] of Object.entries(tokenMap)) {
+      restored = restored.split(token).join(originalValue);
+    }
+
+    // Original values restored
+    expect(restored).toContain("user@example.com");
+    expect(restored).toContain("ABCDE1234F");
+
+    // No tokens remain
+    expect(restored).not.toContain(emailToken);
+    expect(restored).not.toContain(panToken);
+  });
+
+  it("detokenize: handles multiple occurrences of the same token", () => {
+    const original = "Send to a@b.com and cc a@b.com";
+    const { tokenMap, valueToToken } = tokenize(original);
+
+    const token = valueToToken.get("a@b.com")!;
+    const llmOutput = `Reply to ${token} and also ${token}`;
+
+    let restored = llmOutput;
+    for (const [tok, val] of Object.entries(tokenMap)) {
+      restored = restored.split(tok).join(val);
+    }
+
+    expect(restored).toBe("Reply to a@b.com and also a@b.com");
+    expect(restored).not.toContain(token);
+  });
+});

@@ -135,6 +135,58 @@ Forwards a (masked) prompt to the LLM and returns the response.
 
 ---
 
+## Pipeline API (v1.5)
+
+For integrating PII protection into an existing LLM pipeline. See the **Pipeline Demo** tab in the app and [/pipeline-demo/integration-example](/pipeline-demo/integration-example) for full code examples.
+
+### `POST /api/tokenize`
+
+Replaces PII with reversible typed tokens safe to send to any LLM.
+
+**Request**
+```json
+{ "text": "string" }
+```
+
+**Response**
+```json
+{
+  "tokenizedText": "string",
+  "tokenMapId": "string (UUID)",
+  "findings": [...],
+  "riskLevel": "LOW" | "MEDIUM" | "HIGH",
+  "tokenCount": 2
+}
+```
+
+Token format: `[EMAIL_a1b2c3]`, `[AADHAAR_d4e5f6]`, etc. The same value always maps to the same token within a call. Token maps are stored in memory and **expire after 1 hour**.
+
+---
+
+### `POST /api/detokenize`
+
+Restores original PII values from a tokenized LLM response.
+
+**Request**
+```json
+{ "text": "string", "tokenMapId": "string" }
+```
+
+**Response**
+```json
+{
+  "restoredText": "string",
+  "tokensRestored": 2,
+  "originalTokenMapId": "string"
+}
+```
+
+Returns `404` if the token map is not found or has expired.
+
+> **Production note:** The in-memory token store resets on every server restart. For production workloads, replace `lib/token-store.ts` with **Redis** or **DynamoDB** with a TTL index.
+
+---
+
 ## Tech Stack
 
 - [Next.js 16](https://nextjs.org) (App Router)
@@ -160,6 +212,9 @@ Web app on Vercel with regex-based PII detection (email, phone, credit card), ri
 
 **v1 — Complete ✅**
 Expanded detection to 8 PII types: adds Aadhaar, PAN, IP address, passport, and Indian bank account numbers. Confidence scores per finding. Three anonymization modes (Mask / Redact / Replace). Real OpenAI integration ready (mock by default). Session audit log.
+
+**v1.5 — Complete ✅**
+Pipeline tokenisation demo. `/api/tokenize` replaces PII with reversible typed tokens; `/api/detokenize` restores real values from the LLM response. Visual step-by-step Pipeline Demo tab. Integration examples page (Python / Node.js / curl). In-memory token store with 1-hour TTL.
 
 **v2 — MCP server** *(planned)*
 Detection engine packaged as a local MCP server — works natively inside Claude Desktop, Cursor, and Windsurf. Fully local, no cloud, no data leaves the device. Installable via `npm install -g ai-security-gateway-mcp`.

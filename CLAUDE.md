@@ -144,6 +144,56 @@ ai_security_gateway/
 
 **Logic:** Forward `text` to LLM (mock by default; real OpenAI when `OPENAI_API_KEY` is set) and return the model's reply.
 
+---
+
+### POST /api/tokenize *(v1.5 — Pipeline Demo)*
+
+**Input:**
+```json
+{ "text": "string" }
+```
+
+**Output:**
+```json
+{
+  "tokenizedText": "string",
+  "tokenMapId": "string (UUID)",
+  "findings": [...],
+  "riskLevel": "LOW" | "MEDIUM" | "HIGH",
+  "tokenCount": 2
+}
+```
+
+**Logic:** Run `detectPII` on text. For each unique PII value, generate a `[TYPE_xxxxxx]` token (6 random alphanumeric chars). Same value always gets the same token within a call. Replace right-to-left to preserve indices. Store `token → originalValue` map in `lib/token-store.ts` under a UUID (`tokenMapId`). Return tokenized text, UUID, findings, risk level, and token count.
+
+---
+
+### POST /api/detokenize *(v1.5 — Pipeline Demo)*
+
+**Input:**
+```json
+{ "text": "string", "tokenMapId": "string" }
+```
+
+**Output:**
+```json
+{
+  "restoredText": "string",
+  "tokensRestored": 2,
+  "originalTokenMapId": "string"
+}
+```
+
+**Logic:** Look up `tokenMapId` in `lib/token-store.ts`. Replace all token occurrences in `text` with original values (handles multiple occurrences via split/join). Returns 404 if map not found or expired.
+
+---
+
+### Token Store — `lib/token-store.ts`
+
+Module-level `Map<string, TokenMap>` singleton shared by both pipeline routes. Entries expire after **1 hour** (TTL enforced via `purgeExpired()` called on every request).
+
+> **Demo only.** The in-memory store resets on every server restart. For production pipelines, replace `lib/token-store.ts` with a persistent backend such as **Redis** or **DynamoDB** with a TTL index.
+
 ## Shared TypeScript Types
 
 ```typescript
