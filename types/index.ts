@@ -8,7 +8,11 @@ export type PIIType =
   | "PAN"
   | "IP_ADDRESS"
   | "PASSPORT"
-  | "BANK_ACCOUNT";
+  | "BANK_ACCOUNT"
+  | "NAME"
+  | "ADDRESS"
+  | "ORG"
+  | "DATE";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 

@@ -60,6 +60,34 @@ const TYPE_CONFIG: Record<
     border: "border-yellow-500/30",
     icon: "🏦",
   },
+  NAME: {
+    label: "Name",
+    bg: "bg-violet-500/10",
+    text: "text-violet-300",
+    border: "border-violet-500/30",
+    icon: "👤",
+  },
+  ADDRESS: {
+    label: "Address",
+    bg: "bg-pink-500/10",
+    text: "text-pink-300",
+    border: "border-pink-500/30",
+    icon: "📍",
+  },
+  ORG: {
+    label: "Organisation",
+    bg: "bg-rose-500/10",
+    text: "text-rose-300",
+    border: "border-rose-500/30",
+    icon: "🏢",
+  },
+  DATE: {
+    label: "Date",
+    bg: "bg-lime-500/10",
+    text: "text-lime-300",
+    border: "border-lime-500/30",
+    icon: "📅",
+  },
 };
 
 export default function FindingsList({ findings }: { findings: Finding[] }) {

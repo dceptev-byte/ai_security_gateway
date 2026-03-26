@@ -27,6 +27,12 @@ const CONFIDENCE: Record<PIIType, number> = {
   IP_ADDRESS: 0.85,
   PASSPORT: 0.88,
   BANK_ACCOUNT: 0.75,
+  // NER-detected types — confidence assigned by the NER service at runtime;
+  // these defaults are used if maskPII is ever called with NER findings directly.
+  NAME: 0.85,
+  ADDRESS: 0.80,
+  ORG: 0.82,
+  DATE: 0.78,
 };
 
 // ---------------------------------------------------------------------------
@@ -120,6 +126,48 @@ function maskBankAccount(value: string): string {
   return "*".repeat(digits.length - 4) + digits.slice(-4);
 }
 
+// ---------------------------------------------------------------------------
+// NER type masking helpers
+// ---------------------------------------------------------------------------
+function maskName(value: string): string {
+  // "Rahul Sharma" → "R**** S*****"
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) =>
+      word.length > 1 ? word[0] + "*".repeat(word.length - 1) : word[0]
+    )
+    .join(" ");
+}
+
+function maskAddress(value: string): string {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return value;
+  if (words.length === 1)
+    return words[0][0] + "*".repeat(Math.max(words[0].length - 1, 3));
+  return `${words[0]} ***`;
+}
+
+function maskOrg(value: string): string {
+  const prefix = value.slice(0, Math.min(3, value.length));
+  return `${prefix}***`;
+}
+
+const MONTH_NAMES = new Set([
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+  "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+]);
+
+function maskDate(value: string): string {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const masked = words.map((w) => {
+    const clean = w.replace(/[^a-zA-Z]/g, "").toLowerCase();
+    return MONTH_NAMES.has(clean) ? w : "***";
+  });
+  return masked.some((w) => w !== "***") ? masked.join(" ") : "***";
+}
+
 const MASK_FN: Record<PIIType, (value: string) => string> = {
   EMAIL: maskEmail,
   PHONE: maskPhone,
@@ -129,6 +177,10 @@ const MASK_FN: Record<PIIType, (value: string) => string> = {
   IP_ADDRESS: () => maskIpAddress(),
   PASSPORT: maskPassport,
   BANK_ACCOUNT: maskBankAccount,
+  NAME: maskName,
+  ADDRESS: maskAddress,
+  ORG: maskOrg,
+  DATE: maskDate,
 };
 
 // ---------------------------------------------------------------------------
