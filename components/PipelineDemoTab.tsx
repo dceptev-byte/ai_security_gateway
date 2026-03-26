@@ -12,6 +12,8 @@ interface TokenizeResponse {
   findings: Finding[];
   riskLevel: RiskLevel;
   tokenCount: number;
+  nerServiceAvailable: boolean;
+  detectionBreakdown: { regexCount: number; nerCount: number };
 }
 
 interface TokenChip {
@@ -28,9 +30,11 @@ Email: rahul.sharma@gmail.com
 Phone: +91 9876543210
 Aadhaar: 2345 6789 0123
 PAN: ABCDE1234F
-Claim amount: ₹45,000
+Claim amount: Rs 45,000
 Bank account: 123456789012
-Description: Patient was admitted on 12th March for surgery.`;
+Description: Patient Rahul Sharma was admitted on 12th March for surgery at City Hospital, Mumbai.`;
+
+const NER_TYPES = new Set(["NAME", "ADDRESS", "ORG", "DATE"]);
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -77,10 +81,11 @@ function buildMockLLMResponse(
     chips.find((c) => c.type === type)?.token ?? `[${type}]`;
 
   return [
-    `I have processed the insurance claim for ${get("EMAIL")}.`,
+    `I have processed the insurance claim for ${get("NAME")} (email: ${get("EMAIL")}).`,
     "",
-    `The claimant with Aadhaar ${get("AADHAAR")} has submitted a claim for ₹45,000.`,
+    `The claimant with Aadhaar ${get("AADHAAR")} has submitted a claim for Rs 45,000.`,
     `Bank account ${get("BANK_ACCOUNT")} has been noted for disbursement.`,
+    `The surgery was performed at ${get("ORG")}, ${get("ADDRESS")} on ${get("DATE")}.`,
     "",
     `Please verify the claimant's identity using PAN ${get("PAN")} before processing payment.`,
     "",
@@ -362,7 +367,10 @@ export default function PipelineDemoTab() {
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               {tokenizeResult.tokenCount} token
-              {tokenizeResult.tokenCount !== 1 ? "s" : ""} created · Risk:{" "}
+              {tokenizeResult.tokenCount !== 1 ? "s" : ""} created
+              {tokenizeResult.detectionBreakdown.nerCount > 0 &&
+                ` (${tokenizeResult.detectionBreakdown.nerCount} via NER)`}{" "}
+              · Risk:{" "}
               <span
                 className={
                   tokenizeResult.riskLevel === "HIGH"
@@ -376,6 +384,28 @@ export default function PipelineDemoTab() {
               </span>
             </p>
             <CodeBlock text={tokenizeResult.tokenizedText} />
+
+            {/* Detection breakdown badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-blue-400">
+                🔵 Regex: {tokenizeResult.detectionBreakdown.regexCount} item{tokenizeResult.detectionBreakdown.regexCount !== 1 ? "s" : ""}
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${tokenizeResult.nerServiceAvailable ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-slate-700/30 border-slate-600 text-slate-500"}`}>
+                🟢 NER: {tokenizeResult.detectionBreakdown.nerCount} item{tokenizeResult.detectionBreakdown.nerCount !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {/* NER offline warning */}
+            {!tokenizeResult.nerServiceAvailable && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-xs text-amber-400">
+                <span aria-hidden="true" className="mt-0.5 flex-none">⚠</span>
+                <span>
+                  NER service offline — showing regex detection only.
+                  Start the Python service on{" "}
+                  <code className="font-mono">localhost:5001</code> for full detection.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Token map chips */}
@@ -384,16 +414,21 @@ export default function PipelineDemoTab() {
               Token Map
             </p>
             <div className="flex flex-wrap gap-2">
-              {tokenChips.map(({ token, originalValue }) => (
-                <div
-                  key={token}
-                  className="flex items-center gap-1.5 rounded-lg bg-slate-900 border border-slate-600 px-3 py-1.5 text-xs font-mono"
-                >
-                  <span className="text-violet-400">{token}</span>
-                  <span className="text-slate-500">→</span>
-                  <span className="text-slate-300">{originalValue}</span>
-                </div>
-              ))}
+              {tokenChips.map(({ token, type, originalValue }) => {
+                const isNer = NER_TYPES.has(type);
+                return (
+                  <div
+                    key={token}
+                    title={isNer ? "Detected by NER model" : undefined}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-mono border ${isNer ? "bg-violet-500/10 border-violet-500/30" : "bg-slate-900 border-slate-600"}`}
+                  >
+                    {isNer && <span aria-hidden="true">🧠</span>}
+                    <span className="text-violet-400">{token}</span>
+                    <span className="text-slate-500">→</span>
+                    <span className="text-slate-300">{originalValue}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

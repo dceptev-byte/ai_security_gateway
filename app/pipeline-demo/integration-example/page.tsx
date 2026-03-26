@@ -265,6 +265,27 @@ export default function IntegrationExamplePage() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
             Production Notes
           </h3>
+          {/* Phase 2 NER note */}
+          <div className="bg-slate-800 border border-violet-500/20 rounded-xl p-5 flex flex-col gap-2">
+            <p className="text-sm font-semibold text-violet-400 flex items-center gap-2">
+              <span aria-hidden="true">🧠</span> Phase 2: NER detection is now active
+            </p>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Names, addresses, organisations, and dates are now detected in addition to structured
+              PII (email, phone, card numbers, etc.). Detection is performed by a local{" "}
+              <span className="text-slate-300 font-medium">spaCy</span> NER service running on{" "}
+              <code className="text-xs bg-slate-700 rounded px-1 py-0.5">localhost:5001</code>.
+              The tokenize API response includes{" "}
+              <code className="text-xs bg-slate-700 rounded px-1 py-0.5">nerServiceAvailable</code>{" "}
+              and{" "}
+              <code className="text-xs bg-slate-700 rounded px-1 py-0.5">detectionBreakdown</code>{" "}
+              fields. If the NER service is offline, regex detection continues normally.
+              See the{" "}
+              <span className="text-slate-300 font-medium">ner-service/README.md</span>{" "}
+              for setup instructions.
+            </p>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
 
             <div className="bg-slate-800 border border-amber-500/20 rounded-xl p-5 flex flex-col gap-2">
