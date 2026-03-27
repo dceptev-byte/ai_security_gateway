@@ -33,26 +33,45 @@ AI Security Gateway is a privacy-first middleware tool that detects, flags, and 
 - Real OpenAI LLM integration (mock by default; swap with live key via OPENAI_API_KEY)
 - Session audit log (in-memory, resets on page refresh)
 
-**v2 — MCP server** *(planned)*
-- Package detection engine as a local MCP server
-- Works natively in Claude Desktop, Cursor, Windsurf
-- Fully local — no cloud, no Vercel, no data leaves the device
-- Local dashboard showing live prompt scan feed and audit log
-- Install via: npm install -g ai-security-gateway-mcp
-- Intercepts prompts before they reach any LLM regardless of provider
+**v1.5 — Complete ✅**
+- `/api/tokenize` — replaces PII with reversible typed tokens (e.g. `[EMAIL_a1b2c3]`)
+- `/api/detokenize` — restores original values from tokenized LLM output
+- In-memory token store with 1-hour TTL (`lib/token-store.ts`)
+- 4-stage visual Pipeline Demo tab in the web app
+- Integration examples page (Python / Node.js / curl)
 
-**v3 — Smarter detection + browser extension** *(planned)*
-- Add spaCy NER model to MCP server for unstructured PII
-  (names, addresses, organisations) — runs locally
-- Browser extension for ChatGPT.com and Gemini.google.com
-- Custom rules — users define their own PII patterns
+**v2 — Complete ✅**
+- Detection engine packaged as a standalone MCP server (`ai-security-gateway-mcp`)
+- Works natively in Claude Desktop, Cursor, Windsurf via `scan_prompt` tool
+- Fully local — no cloud, no Vercel, no data leaves the device
+- Installable via: `npm install -g ai-security-gateway-mcp`
+- Config: `claude_desktop_config.json` → `mcpServers`
+
+**Phase 2 — Complete ✅**
+- Local Python spaCy NER service (`C:\Claude\ner-service\app.py`, port 5001)
+- Model: `en_core_web_lg` (400.7 MB)
+- Four new PII types: NAME, ADDRESS, ORG, DATE
+- `/api/tokenize` calls NER service and merges findings with regex results
+- Graceful fallback: if NER service offline, regex detection still works
+- Pipeline Demo UI: purple 🧠 chips for NER-detected tokens; NER offline warning
+
+**v3 — Paused ⏸️**
+- Browser extension for Claude.ai, ChatGPT, Gemini
+- Intercepts prompts client-side in the browser before they are sent
+- Custom user-defined detection rules
 - Multi-language support
+
+**v4–v6 — Planned 📋**
+- v4: Output scanning — scan LLM responses for PII before displaying to user
+- v5: Prompt injection detection — flag adversarial prompt patterns
+- v6: Local LLM routing — send sensitive prompts to a local model instead of cloud
 
 ### Architecture decision log
 - Detection must always run locally — sending raw text to an LLM for detection defeats the purpose of the tool
 - Regex chosen for v0/v1: fast, free, no external dependencies, appropriate for structured PII (email, phone, card numbers, IDs)
-- NER/ML models deferred to v3: require Python runtime or browser WASM, adds complexity not justified for MVP
-- MCP chosen over browser extension for v2: serves developer audience first, works across all LLM providers via IDE/Desktop, browser extension added in v3 for consumer LLM web apps
+- NER via local Python service (Phase 2): spaCy `en_core_web_lg` runs on the user's machine; API call is localhost-only
+- MCP chosen over browser extension for v2: serves developer audience first, works across all LLM providers via IDE/Desktop
+- Browser extension deferred to v3: consumer LLM web apps are secondary audience
 
 ---
 
@@ -74,29 +93,39 @@ AI Security Gateway is a Next.js 16 middleware UI that detects, flags, and masks
 ```
 ai_security_gateway/
 ├── app/
-│   ├── layout.tsx          # Root layout
-│   ├── page.tsx            # Home page (main UI)
+│   ├── layout.tsx                          # Root layout
+│   ├── page.tsx                            # Home page (scanner + pipeline tabs)
+│   ├── pipeline-demo/
+│   │   └── integration-example/
+│   │       └── page.tsx                    # Integration examples (Python/Node/curl)
 │   └── api/
 │       ├── analyze/
-│       │   └── route.ts    # POST /api/analyze
-│       └── send/
-│           └── route.ts    # POST /api/send
+│       │   └── route.ts                    # POST /api/analyze
+│       ├── send/
+│       │   └── route.ts                    # POST /api/send
+│       ├── tokenize/
+│       │   └── route.ts                    # POST /api/tokenize  (v1.5 + Phase 2)
+│       └── detokenize/
+│           └── route.ts                    # POST /api/detokenize (v1.5)
 ├── lib/
-│   └── pii-detector.ts     # detectPII, maskPII, scoreRisk
+│   ├── pii-detector.ts                     # detectPII, maskPII, scoreRisk (12 types)
+│   └── token-store.ts                      # In-memory token map, 1-hour TTL
 ├── hooks/
-│   └── useAuditLog.ts      # Session audit log hook
+│   └── useAuditLog.ts                      # Session audit log hook
 ├── components/
 │   ├── RiskBadge.tsx
 │   ├── FindingsList.tsx
 │   ├── ToggleSwitch.tsx
-│   └── AuditLog.tsx
+│   ├── AuditLog.tsx
+│   └── PipelineDemoTab.tsx                 # 4-stage pipeline demo UI
 ├── types/
-│   └── index.ts            # Shared TypeScript types
-├── __tests__/
-│   └── pii-detector.test.ts
+│   └── index.ts                            # Shared TypeScript types
+├── lib/
+│   └── __tests__/
+│       └── pii.test.ts                     # Unit tests (97 passing)
 ├── CLAUDE.md
 ├── .env.local.example
-└── .env.local              # gitignored
+└── .env.local                              # gitignored
 ```
 
 ## API Routes
@@ -146,7 +175,7 @@ ai_security_gateway/
 
 ---
 
-### POST /api/tokenize *(v1.5 — Pipeline Demo)*
+### POST /api/tokenize *(v1.5 + Phase 2)*
 
 **Input:**
 ```json
@@ -160,11 +189,13 @@ ai_security_gateway/
   "tokenMapId": "string (UUID)",
   "findings": [...],
   "riskLevel": "LOW" | "MEDIUM" | "HIGH",
-  "tokenCount": 2
+  "tokenCount": 2,
+  "nerServiceAvailable": true,
+  "detectionBreakdown": { "regexCount": 8, "nerCount": 3 }
 }
 ```
 
-**Logic:** Run `detectPII` on text. For each unique PII value, generate a `[TYPE_xxxxxx]` token (6 random alphanumeric chars). Same value always gets the same token within a call. Replace right-to-left to preserve indices. Store `token → originalValue` map in `lib/token-store.ts` under a UUID (`tokenMapId`). Return tokenized text, UUID, findings, risk level, and token count.
+**Logic:** Run `detectPII` (regex, 8 types) on text. Also call the local NER service at `http://localhost:5001/ner` for NAME/ADDRESS/ORG/DATE detection. Merge both finding sets, deduplicate by value (keep highest confidence). For each unique PII value, generate a `[TYPE_xxxxxx]` token (6 random alphanumeric chars). Same value always gets the same token within a call. Replace right-to-left to preserve indices. Store `token → originalValue` map in `lib/token-store.ts` under a UUID (`tokenMapId`). If NER service is unreachable, set `nerServiceAvailable: false` and proceed with regex findings only.
 
 ---
 
@@ -203,7 +234,8 @@ type AnonymizationMode = "MASK" | "REDACT" | "REPLACE";
 
 type PIIType =
   | "EMAIL" | "PHONE" | "CREDIT_CARD"
-  | "AADHAAR" | "PAN" | "IP_ADDRESS" | "PASSPORT" | "BANK_ACCOUNT";
+  | "AADHAAR" | "PAN" | "IP_ADDRESS" | "PASSPORT" | "BANK_ACCOUNT"
+  | "NAME" | "ADDRESS" | "ORG" | "DATE";   // Phase 2 — NER-detected types
 
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
@@ -232,9 +264,11 @@ interface AuditLogEntry {
 }
 ```
 
-## Detection Rules (Regex-Based)
+## Detection Rules
 
-All detection runs server-side in `lib/pii-detector.ts`. Raw text is never sent to an external service for analysis.
+### Regex-Based (lib/pii-detector.ts)
+
+All regex detection runs server-side. Raw text is never sent to any external service.
 
 | Type           | Regex Pattern                                                                 | Confidence | Notes                                      |
 |----------------|-------------------------------------------------------------------------------|------------|--------------------------------------------|
@@ -246,6 +280,26 @@ All detection runs server-side in `lib/pii-detector.ts`. Raw text is never sent 
 | `IP_ADDRESS`   | `/\b(?:(?:25[0-5]\|2[0-4][0-9]\|[01]?[0-9][0-9]?)\.){3}(...)\b/g`           | 0.85       | Each octet validated 0–255                 |
 | `PASSPORT`     | `/\b[A-PR-WYa-pr-wy][1-9]\d\s?\d{4}[1-9]\b/g`                               | 0.88       | Indian passport format                     |
 | `BANK_ACCOUNT` | `/\b[0-9]{9,18}\b/g` (context-gated)                                          | 0.75       | Only flagged near banking context words    |
+
+### NER-Based (Phase 2 — local Python service)
+
+NER detection runs via a local Flask + spaCy service on `localhost:5001`. The `/api/tokenize` route calls it and merges results with regex findings. Falls back gracefully to regex-only if the service is offline.
+
+| Type      | spaCy Label  | Confidence | Notes                                       |
+|-----------|--------------|------------|---------------------------------------------|
+| `NAME`    | `PERSON`     | 0.85       | Person names e.g. "Rahul Sharma"            |
+| `ADDRESS` | `GPE`, `LOC` | 0.80       | Locations e.g. "Mumbai", "New Delhi"        |
+| `ORG`     | `ORG`        | 0.82       | Organisations e.g. "City Hospital"          |
+| `DATE`    | `DATE`       | 0.78       | Dates e.g. "12th March", "March 2024"       |
+
+## NER Service
+
+- **Location:** `C:\Claude\ner-service\app.py`
+- **Model:** `en_core_web_lg` (400.7 MB, loaded once on startup)
+- **Endpoint:** `POST http://localhost:5001/ner`
+- **Start:** `python app.py` from the `ner-service` folder
+- **Fallback:** if the service is offline, `/api/tokenize` sets `nerServiceAvailable: false` and continues with regex findings — no crash, no error to the user
+- **CORS:** enabled for `localhost:3000` (Next.js dev) and the Vercel production URL
 
 ## Masking Format (MASK mode)
 
@@ -259,6 +313,10 @@ All detection runs server-side in `lib/pii-detector.ts`. Raw text is never sent 
 | `IP_ADDRESS`   | `***.***.***.***`            |
 | `PASSPORT`     | `*******`                   |
 | `BANK_ACCOUNT` | `**********9012`            |
+| `NAME`         | `R*** S****` (first letter of each word + asterisks) |
+| `ADDRESS`      | `Mumbai ***` (first word + asterisks)                |
+| `ORG`          | `Cit***` (first 3 chars + asterisks)                 |
+| `DATE`         | `*** March ***` (month preserved, rest masked)        |
 
 ## Anonymization Modes
 
