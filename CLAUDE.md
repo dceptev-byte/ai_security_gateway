@@ -48,7 +48,7 @@ AI Security Gateway is a privacy-first middleware tool that detects, flags, and 
 - Config: `claude_desktop_config.json` → `mcpServers`
 
 **Phase 2 — Complete ✅**
-- Local Python spaCy NER service (`C:\Claude\ner-service\app.py`, port 5001)
+- Local Python spaCy NER service (`~/Claude/ner-service/app.py`, port 5001)
 - Model: `en_core_web_lg` (400.7 MB)
 - Four new PII types: NAME, ADDRESS, ORG, DATE
 - `/api/tokenize` calls NER service and merges findings with regex results
@@ -72,6 +72,36 @@ AI Security Gateway is a privacy-first middleware tool that detects, flags, and 
 - NER via local Python service (Phase 2): spaCy `en_core_web_lg` runs on the user's machine; API call is localhost-only
 - MCP chosen over browser extension for v2: serves developer audience first, works across all LLM providers via IDE/Desktop
 - Browser extension deferred to v3: consumer LLM web apps are secondary audience
+
+---
+
+## Development Machine
+
+- **Hardware:** M5 MacBook Air 16GB / 512GB — sole development machine
+- **OS:** macOS
+- **Python:** `python3.11` (`/opt/homebrew/bin/python3.11`) / `pip3.11`
+- **Project:** `~/Claude/ai_security_gateway`
+- **MCP server:** `~/Claude/ai-security-gateway-mcp`
+- **NER service:** `~/Claude/ner-service`
+
+## How to Run the Demo
+
+```bash
+# Terminal 1 — NER service
+cd ~/Claude/ner-service && python3.11 app.py
+
+# Terminal 2 — Next.js dev server
+cd ~/Claude/ai_security_gateway && npm run dev
+```
+
+Open: **http://localhost:3000**
+
+## Ollama (Local LLM)
+
+- **Installed:** on Mac, via Homebrew
+- **Model:** `qwen2.5:7b-instruct-q4_K_M`
+- **Endpoint:** `http://localhost:11434`
+- **Start:** `ollama serve` (or it starts automatically on login)
 
 ---
 
@@ -294,10 +324,10 @@ NER detection runs via a local Flask + spaCy service on `localhost:5001`. The `/
 
 ## NER Service
 
-- **Location:** `C:\Claude\ner-service\app.py`
+- **Location:** `~/Claude/ner-service/app.py`
 - **Model:** `en_core_web_lg` (400.7 MB, loaded once on startup)
 - **Endpoint:** `POST http://localhost:5001/ner`
-- **Start:** `python app.py` from the `ner-service` folder
+- **Start:** `python3.11 app.py` from the `~/Claude/ner-service` folder
 - **Fallback:** if the service is offline, `/api/tokenize` sets `nerServiceAvailable: false` and continues with regex findings — no crash, no error to the user
 - **CORS:** enabled for `localhost:3000` (Next.js dev) and the Vercel production URL
 
